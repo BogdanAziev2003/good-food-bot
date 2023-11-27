@@ -1,0 +1,27 @@
+{
+  "name": "good-food-bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon run dev",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BogdanAziev2003/good-food-bot.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/BogdanAziev2003/good-food-bot/issues"
+  },
+  "homepage": "https://github.com/BogdanAziev2003/good-food-bot#readme",
+  "dependencies": {
+    "node-telegram-bot-api": "^0.64.0",
+    "nodemon": "^3.0.1"
+  },
+  "devDependencies": {
+    "@types/node-telegram-bot-api": "^0.63.3"
+  }
+}
