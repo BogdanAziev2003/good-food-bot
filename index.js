@@ -1,7 +1,5 @@
 const TelegramBot = require("node-telegram-bot-api");
 
-const isDelivery = true;
-
 const TOKEN = "6603590435:AAGJsw4F1Pk6hrATEbGtbsA3naNqUo1myRM";
 
 const bot = new TelegramBot(TOKEN, { polling: true });
@@ -10,6 +8,7 @@ bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
 
+  // Отправка приветственного сообщения
   if (text === "/start") {
     const welcomeMessage = `
     Добро пожаловать! 🍽️\n\nЯ бот, который поможет заказть еду с ресторана Good Food. Вы можете выбрать блюда из нашего меню и сделать заказ. 😊\n\nДля просмотра меню и совершения заказа, воспользуйтесь кнопкой ниже:
@@ -22,9 +21,6 @@ bot.on("message", async (msg) => {
             {
               text: "Меню 🍔",
               web_app: { url: "https://vermillion-sprite-a15645.netlify.app/" },
-            },
-            {
-              text: "/data",
             },
           ],
         ],
@@ -68,19 +64,54 @@ bot.on("message", async (msg) => {
       }
     });
   }
+
+  // Когда получили данные
+  if (msg?.web_app_data?.data) {
+    try {
+      const data = JSON.parse(msg?.web_app_data?.data);
+      const { itemInCard } = data;
+      console.log(data);
+      // Делим данные по сометимости
+      const items = splitItemsInCart(itemInCard);
+
+      // Создаю из заказа строку для вывода пользователю
+      const itemsString = getItemsString(items);
+
+      const message = createOrderText(data, itemsString);
+      await bot.sendMessage(chatId, message);
+    } catch (e) {
+      console.log(e);
+    }
+  }
 });
 
 function splitItemsInCart(itemInCard) {
   const itemsCount = itemInCard.reduce((acc, item) => {
     const existingItem = acc.find(
       (i) =>
-        i.id === item.id &&
+        i.title === item.title &&
         JSON.stringify(i.modifiers) === JSON.stringify(item.modifiers)
     );
-    if (existingItem) {
-      existingItem.count += 1;
+    const existingSandwich = acc.find(
+      (i) =>
+        i.title === item.title &&
+        JSON.stringify(i.modifiers) === JSON.stringify(item.modifiers) &&
+        i.sause === item.sause &&
+        i.snack === item.snack
+    );
+    if (item.snack) {
+      console.info("sandwich");
+      if (existingSandwich) {
+        existingItem.count += 1;
+      } else {
+        acc.push({ ...item, count: 1 });
+      }
     } else {
-      acc.push({ ...item, count: 1 });
+      if (existingItem) {
+        existingItem.count += 1;
+      } else {
+        acc.push({ ...item, count: 1 });
+      }
     }
     return acc;
   }, []);
@@ -90,22 +121,25 @@ function splitItemsInCart(itemInCard) {
 
 function getItemsString(items) {
   let res = "";
-  items.forEach((el, index) => {
-    let modifiers = () => {
-      let mod = "";
 
-      el.modifiers.forEach((m) => {
-        if (m.amount !== 0) mod += `${m.title.toLowerCase()} x${m.amount}  `;
-      });
-
-      if (mod === "") mod = "без добавок";
-      return mod;
-    };
-
-    res += `${index + 1}. ${el.title} x${
-      el.count
-    }. \nДобавки: ${modifiers()}\n\n`;
+  items.forEach((item, index) => {
+    res += `${index + 1}. ${item.title} x${item.count} ( ${item.price} ₽)\n`;
+    if (item.snack) {
+      res += `+${item.snack}\n+${item.sause}\n`;
+    }
+    if (item.modifiers.length !== 0) {
+      res += `Добавки: ${item.modifiers.map(
+        (i) => `${i.title.toLowerCase()} x ${i.amount} `
+      )}\n`;
+    }
+    res += "\n";
   });
 
+  return res;
+}
+
+function createOrderText(data, cart) {
+  const { price, address, phone, deliveryType, payMethod, comment } = data;
+  res = `Заказ №32\n\nКорзина:\n${cart}Цена: ${price}\n\Номер телефона: ${phone}`;
   return res;
 }
