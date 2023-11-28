@@ -1,52 +1,74 @@
-const TelegramBot = require('node-telegram-bot-api')
+const TelegramBot = require("node-telegram-bot-api");
 
-const TOKEN = '6603590435:AAGJsw4F1Pk6hrATEbGtbsA3naNqUo1myRM'
+const isDelivery = true;
 
-const bot = new TelegramBot(TOKEN, { polling: true })
+const TOKEN = "6603590435:AAGJsw4F1Pk6hrATEbGtbsA3naNqUo1myRM";
 
-bot.on('message', async (msg) => {
-  const chatId = msg.chat.id
-  const text = msg.text
+const bot = new TelegramBot(TOKEN, { polling: true });
 
-  if (text === '/start') {
+bot.on("message", async (msg) => {
+  const chatId = msg.chat.id;
+  const text = msg.text;
+
+  if (text === "/start") {
     const welcomeMessage = `
     Добро пожаловать! 🍽️\n\nЯ бот, который поможет заказть еду с ресторана Good Food. Вы можете выбрать блюда из нашего меню и сделать заказ. 😊\n\nДля просмотра меню и совершения заказа, воспользуйтесь кнопкой ниже:
-    `
+    `;
 
     await bot.sendMessage(chatId, welcomeMessage, {
       reply_markup: {
         keyboard: [
           [
             {
-              text: 'Меню 🍔',
-              web_app: { url: 'https://vermillion-sprite-a15645.netlify.app/' },
+              text: "Меню 🍔",
+              web_app: { url: "https://vermillion-sprite-a15645.netlify.app/" },
+            },
+            {
+              text: "/data",
             },
           ],
         ],
         resize_keyboard: true,
       },
-    })
+    });
   }
 
-  if (msg?.web_app_data?.data) {
-    try {
-      const data = JSON.parse(msg?.web_app_data?.data)
-      const { itemInCard } = data
+  const loremText = `Lorem Ipsum - это текст-"рыба", часто используемый в печати и вэб-дизайне. Lorem Ipsum является стандартной "рыбой" для текстов на латинице с начала XVI века. В то время некий безымянный печатник создал большую коллекцию размеров и форм шрифтов, используя Lorem Ipsum для распечатки образцов. Lorem Ipsum не только успешно пережил без заметных изменений пять веков, но и перешагнул в электронный дизайн. Его популяризации`;
+  if (text === "/data") {
+    const messageWithButtons = await bot.sendMessage(chatId, loremText, {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "Принять", callback_data: "button1" },
+            { text: "Отклонить", callback_data: "button2" },
+          ],
+        ],
+      },
+    });
 
-      const items = splitItemsInCart(itemInCard)
-      console.log('items')
+    const messageId = messageWithButtons.message_id;
+    console.log(messageId);
 
-      const itemsString = getItemsString(items)
+    bot.once("callback_query", async (query) => {
+      const chosenButton = query.data;
 
-      console.log('itemsString')
-      await bot.sendMessage(chatId, itemsString)
-    } catch (e) {
-      console.log(e)
-    }
-  } else {
-    console.log('not data')
+      // Удаляем сообщение с кнопками
+      await bot.deleteMessage(chatId, messageId);
+
+      let acceptedMessage = `Ваш заказ был передан, ожидайте`;
+
+      if (isDelivery) {
+        acceptedMessage = `Ваш заказ был передан, скоро сотрудник увидет его и огласит вам цену доставки`;
+      }
+      if (chosenButton === "button1") {
+        await bot.sendMessage(chatId, acceptedMessage);
+      } else if (chosenButton === "button2") {
+        // Действие для кнопки 2
+        await bot.sendMessage(chatId, "Ваш заказ был отменен");
+      }
+    });
   }
-})
+});
 
 function splitItemsInCart(itemInCard) {
   const itemsCount = itemInCard.reduce((acc, item) => {
@@ -54,36 +76,36 @@ function splitItemsInCart(itemInCard) {
       (i) =>
         i.id === item.id &&
         JSON.stringify(i.modifiers) === JSON.stringify(item.modifiers)
-    )
+    );
     if (existingItem) {
-      existingItem.count += 1
+      existingItem.count += 1;
     } else {
-      acc.push({ ...item, count: 1 })
+      acc.push({ ...item, count: 1 });
     }
-    return acc
-  }, [])
+    return acc;
+  }, []);
 
-  return itemsCount
+  return itemsCount;
 }
 
 function getItemsString(items) {
-  let res = ''
+  let res = "";
   items.forEach((el, index) => {
     let modifiers = () => {
-      let mod = ''
+      let mod = "";
 
       el.modifiers.forEach((m) => {
-        if (m.amount !== 0) mod += `${m.title.toLowerCase()} x${m.amount}  `
-      })
+        if (m.amount !== 0) mod += `${m.title.toLowerCase()} x${m.amount}  `;
+      });
 
-      if (mod === '') mod = 'без добавок'
-      return mod
-    }
+      if (mod === "") mod = "без добавок";
+      return mod;
+    };
 
     res += `${index + 1}. ${el.title} x${
       el.count
-    }. \nДобавки: ${modifiers()}\n\n`
-  })
+    }. \nДобавки: ${modifiers()}\n\n`;
+  });
 
-  return res
+  return res;
 }

@@ -19,7 +19,8 @@
   "homepage": "https://github.com/BogdanAziev2003/good-food-bot#readme",
   "dependencies": {
     "node-telegram-bot-api": "^0.64.0",
-    "nodemon": "^3.0.1"
+    "nodemon": "^3.0.1",
+    "pino": "^8.16.2"
   },
   "devDependencies": {
     "@types/node-telegram-bot-api": "^0.63.3"
