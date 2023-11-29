@@ -1,4 +1,6 @@
-const TelegramBot = require("node-telegram-bot-api");
+const TelegramBot = require(" ");
+const myTgId = 766417676;
+const groupId = -4062521049;
 
 const TOKEN = "6603590435:AAGJsw4F1Pk6hrATEbGtbsA3naNqUo1myRM";
 
@@ -7,9 +9,9 @@ const bot = new TelegramBot(TOKEN, { polling: true });
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
-
+  let orderMessage;
   // Отправка приветственного сообщения
-  if (text === "/start") {
+  if (text === "/start" && chatId !== groupId) {
     const welcomeMessage = `
     Добро пожаловать! 🍽️\n\nЯ бот, который поможет заказть еду с ресторана Good Food. Вы можете выбрать блюда из нашего меню и сделать заказ. 😊\n\nДля просмотра меню и совершения заказа, воспользуйтесь кнопкой ниже:
     `;
@@ -29,56 +31,75 @@ bot.on("message", async (msg) => {
     });
   }
 
-  const loremText = `Lorem Ipsum - это текст-"рыба", часто используемый в печати и вэб-дизайне. Lorem Ipsum является стандартной "рыбой" для текстов на латинице с начала XVI века. В то время некий безымянный печатник создал большую коллекцию размеров и форм шрифтов, используя Lorem Ipsum для распечатки образцов. Lorem Ipsum не только успешно пережил без заметных изменений пять веков, но и перешагнул в электронный дизайн. Его популяризации`;
-  if (text === "/data") {
-    const messageWithButtons = await bot.sendMessage(chatId, loremText, {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: "Принять", callback_data: "button1" },
-            { text: "Отклонить", callback_data: "button2" },
-          ],
-        ],
-      },
-    });
-
-    const messageId = messageWithButtons.message_id;
-    console.log(messageId);
-
-    bot.once("callback_query", async (query) => {
-      const chosenButton = query.data;
-
-      // Удаляем сообщение с кнопками
-      await bot.deleteMessage(chatId, messageId);
-
-      let acceptedMessage = `Ваш заказ был передан, ожидайте`;
-
-      if (isDelivery) {
-        acceptedMessage = `Ваш заказ был передан, скоро сотрудник увидет его и огласит вам цену доставки`;
-      }
-      if (chosenButton === "button1") {
-        await bot.sendMessage(chatId, acceptedMessage);
-      } else if (chosenButton === "button2") {
-        // Действие для кнопки 2
-        await bot.sendMessage(chatId, "Ваш заказ был отменен");
-      }
-    });
-  }
-
   // Когда получили данные
   if (msg?.web_app_data?.data) {
     try {
       const data = JSON.parse(msg?.web_app_data?.data);
       const { itemInCard } = data;
-      console.log(data);
       // Делим данные по сометимости
       const items = splitItemsInCart(itemInCard);
 
       // Создаю из заказа строку для вывода пользователю
       const itemsString = getItemsString(items);
 
-      const message = createOrderText(data, itemsString);
-      await bot.sendMessage(chatId, message);
+      // Создаю текст, который отправлю покупателю и ресторану
+      const orderText = createOrderText(data, itemsString);
+
+      // Отправляю сообщение о заказе клиенту и добавляю 2 кнопки, также записываю сообщение в переменную для дальнейшего взаимодействия
+      await bot
+        .sendMessage(chatId, orderText, {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: "Подтвердить", callback_data: "acceptButton" },
+                { text: "Отменить", callback_data: "cancelButton" },
+              ],
+            ],
+          },
+        })
+        .then((sentMessage) => {
+          const messageId = sentMessage.message_id;
+
+          bot.once("callback_query", (query) => {
+            const chosenButton = query.data;
+            console.log(data);
+            // Удаляем инлайн кнопки из сообщения
+            bot.editMessageReplyMarkup(
+              { inline_keyboard: [] },
+              {
+                chat_id: chatId,
+                message_id: messageId,
+              }
+            );
+
+            // Обработка действия, связанного с выбранной кнопкой
+            if (chosenButton === "acceptButton") {
+              bot.sendMessage(chatId, "Ваш заказ был подствержден");
+              if (data.deliveryType === "delivery") {
+                bot.sendMessage(
+                  chatId,
+                  "В скором времени наш сотрудник сообщит вам цену доставки"
+                );
+              }
+
+              //
+              //
+              //
+              let textForGroup = `Новый заказ!!!\n${orderText}\n${
+                data.deliveryType === "delivery"
+                  ? "Укажите стоимость доставки на этот адресс"
+                  : ""
+              }`;
+              bot.sendMessage(groupId, textForGroup);
+
+              //
+              //
+              //
+            } else if (chosenButton === "cancelButton") {
+              bot.sendMessage(chatId, "Ваш заказ был отменен");
+            }
+          });
+        });
     } catch (e) {
       console.log(e);
     }
@@ -140,6 +161,10 @@ function getItemsString(items) {
 
 function createOrderText(data, cart) {
   const { price, address, phone, deliveryType, payMethod, comment } = data;
-  res = `Заказ №32\n\nКорзина:\n${cart}Цена: ${price}\n\Номер телефона: ${phone}`;
+  res = `Заказ №32\n\nКорзина:\n${cart}Цена: ${price}\n\Номер телефона: ${phone}\nМетод оплаты: ${
+    payMethod === "cash" ? "Наличными" : "Переводом"
+  }\nТип получения: ${deliveryType === "pickup" ? "Самовывоз" : "Доставка"}\n${
+    address !== null ? "Адресс: " + address + "\n" : ""
+  }${comment !== null ? "Комментарий к заказу: " + comment + "\n" : ""}`;
   return res;
 }
