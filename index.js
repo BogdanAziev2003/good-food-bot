@@ -1,6 +1,12 @@
-const TelegramBot = require(" ");
+const TelegramBot = require("node-telegram-bot-api");
+const xlsxPopulate = require("xlsx-populate");
+const moment = require("moment-timezone");
+const axios = require("axios");
+
 const myTgId = 766417676;
-const groupId = -4062521049;
+const fs = require("fs");
+const groupId = -1002099588087;
+const path = require("path");
 
 const TOKEN = "6603590435:AAGJsw4F1Pk6hrATEbGtbsA3naNqUo1myRM";
 
@@ -9,7 +15,6 @@ const bot = new TelegramBot(TOKEN, { polling: true });
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
-  let orderMessage;
   // Отправка приветственного сообщения
   if (text === "/start" && chatId !== groupId) {
     const welcomeMessage = `
@@ -62,7 +67,6 @@ bot.on("message", async (msg) => {
 
           bot.once("callback_query", (query) => {
             const chosenButton = query.data;
-            console.log(data);
             // Удаляем инлайн кнопки из сообщения
             bot.editMessageReplyMarkup(
               { inline_keyboard: [] },
@@ -102,6 +106,71 @@ bot.on("message", async (msg) => {
         });
     } catch (e) {
       console.log(e);
+    }
+  }
+
+  if (chatId === groupId) {
+    if (text === "Админка") {
+      await bot.sendMessage(chatId, "Панель администратора", {
+        reply_markup: {
+          keyboard: [
+            [
+              {
+                text: "Заказы",
+              },
+            ],
+            [{ text: "Блюда" }, { text: "Модификаторы" }],
+          ],
+          resize_keyboard: true,
+        },
+      });
+    }
+
+    if (text === "Заказы") {
+      try {
+        bot.deleteMessage(chatId, msg.message_id);
+        let xlsxPath = path.join(
+          __dirname,
+          "orders",
+          `${getCurrentDateTime()}.xlsx`
+        );
+        fs.writeFileSync(xlsxPath, "");
+
+        await fetchData(
+          "https://server.tg-delivery.ru/api/menu/getOrders"
+        ).then((data) => {
+          data = AOOtoAOA(data);
+          xlsxPopulate
+            .fromBlankAsync()
+            .then((workbook) => {
+              // Получение первого листа
+              const sheet = workbook.sheet(0);
+
+              // Запись данных в лист
+              data.forEach((row, rowIndex) => {
+                row.forEach((value, columnIndex) => {
+                  sheet.cell(rowIndex + 1, columnIndex + 1).value(value);
+                });
+              });
+
+              // Сохранение книги в файл
+              return workbook.toFileAsync(xlsxPath);
+            })
+            .then(() => {
+              bot.sendDocument(
+                chatId,
+                xlsxPath,
+                {},
+                {
+                  contentType:
+                    "pplication/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                }
+              );
+            });
+        });
+      } catch (error) {
+        console.log(error);
+      }
     }
   }
 });
@@ -167,4 +236,31 @@ function createOrderText(data, cart) {
     address !== null ? "Адресс: " + address + "\n" : ""
   }${comment !== null ? "Комментарий к заказу: " + comment + "\n" : ""}`;
   return res;
+}
+
+function getCurrentDateTime() {
+  // Получаем текущую дату и время с учетом часового пояса +3
+  const currentDate = moment().tz("Europe/Moscow");
+
+  // Форматируем дату и время с разделителями
+  return currentDate.format("YYYY-MM-DD_HH-mm-ss");
+}
+
+async function fetchData(url) {
+  try {
+    const response = await axios.get(url);
+    return response.data;
+  } catch (error) {
+    console.error("Fetch error:", error.message);
+  }
+}
+
+function AOOtoAOA(arr) {
+  return arr.map((obj) => {
+    let array = [];
+    for (let key in obj) {
+      array.push(obj[key]);
+    }
+    return array;
+  });
 }
