@@ -6,7 +6,7 @@ const fs = require("fs");
 
 const groupId = -1002099588087;
 const path = require("path");
-const TOKEN = "6916337720:AAETKuZotosMqW9rJu_STS206ys1ziBoUPs";
+const TOKEN = "6603590435:AAGJsw4F1Pk6hrATEbGtbsA3naNqUo1myRM";
 const bot = new TelegramBot(TOKEN, { polling: true });
 const myTgId = 766417676;
 
