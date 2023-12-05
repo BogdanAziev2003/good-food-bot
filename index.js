@@ -28,7 +28,7 @@ bot.on("message", async (msg) => {
           [
             {
               text: "Меню 🍔",
-              web_app: { url: "https://vermillion-sprite-a15645.netlify.app/" },
+              web_app: { url: "https://good-food.tg-delivery.ru/" },
             },
           ],
         ],
@@ -54,6 +54,7 @@ bot.on("message", async (msg) => {
       // Отправляю сообщение о заказе клиенту и добавляю 2 кнопки, также записываю сообщение в переменную для дальнейшего взаимодействия
       await bot
         .sendMessage(chatId, orderText, {
+          parse_mode: "HTML",
           reply_markup: {
             inline_keyboard: [
               [
@@ -86,13 +87,17 @@ bot.on("message", async (msg) => {
                   "В скором времени наш сотрудник сообщит вам цену доставки"
                 );
               }
-              bot.sendMessage(myTgId, orderText);
-              let textForGroup = `Заказ: \n${orderText}\n${
+              bot.sendMessage(myTgId, orderText, {
+                parse_mode: "HTML",
+              });
+              let textForGroup = `${orderText}\n${
                 data.deliveryType === "delivery"
                   ? "Укажите стоимость доставки на этот адресс"
                   : ""
               }`;
-              bot.sendMessage(groupId, textForGroup);
+              bot.sendMessage(groupId, textForGroup, {
+                parse_mode: "HTML",
+              });
               axios.post("https://server.tg-delivery.ru/api/menu/createOrder", {
                 username: msg.from?.username,
                 tgId: chatId,
@@ -309,12 +314,25 @@ function getItemsString(items) {
 }
 
 function createOrderText(data, cart) {
-  const { price, address, phone, deliveryType, payMethod, comment } = data;
-  res = `Новы заказ:\n\nКорзина:\n${cart}Цена: ${price}\n\Номер телефона: ${phone}\nМетод оплаты: ${
+  const {
+    price,
+    address,
+    phone,
+    deliveryType,
+    payMethod,
+    comment,
+    discountPrice,
+  } = data;
+  res = `Новый заказ:\n\nКорзина:\n${cart}\Номер телефона: ${phone}\nМетод оплаты: <b>${
     payMethod === "cash" ? "Наличными" : "Переводом"
-  }\nТип получения: ${deliveryType === "pickup" ? "Самовывоз" : "Доставка"}\n${
-    address !== null ? "Адресс: " + address + "\n" : ""
-  }${comment !== null ? "Комментарий к заказу: " + comment + "\n" : ""}`;
+  }</b>\nТип получения: <b>${
+    deliveryType === "pickup" ? "Самовывоз" : "Доставка"
+  }</b>\n${address !== null ? "Адресс: " + address + "\n" : ""}${
+    comment !== null ? "Комментарий к заказу: " + comment + "\n" : ""
+  }`;
+  res += `\nЦена без скидки: <b>${price}</b> ₽
+Цена со скидкой: <b>${discountPrice}</b> ₽`;
+
   return res;
 }
 
