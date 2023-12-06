@@ -4,18 +4,16 @@ const moment = require("moment-timezone");
 const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
+require("dotenv").config();
 
-const groupId = -1002099588087;
-const TOKEN = "6603590435:AAGJsw4F1Pk6hrATEbGtbsA3naNqUo1myRM";
-// const groupId = -1002034989359;
-// const TOKEN = "6916337720:AAETKuZotosMqW9rJu_STS206ys1ziBoUPs";
-const bot = new TelegramBot(TOKEN, { polling: true });
-const myTgId = 766417676;
 let goodsId;
 let modifiersId;
-
 let isGoodsChange = false;
 let isModifiersChange = false;
+
+let groupId = Number(process.env.GROUP_ID);
+
+const bot = new TelegramBot(process.env.TOKEN, { polling: true });
 
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
@@ -112,7 +110,8 @@ bot.on("message", async (msg) => {
         });
     } catch (e) {
       console.log(e);
-      bot.sendMessage(chatId, "Ошибка при обработке данных");
+      bot.sendMessage(chatId, "Упс, что-то пошло не так. Попробуйте еще раз");
+      bot.sendMessage(process.env.MY_TG_ID, e);
     }
   }
 
@@ -178,7 +177,8 @@ bot.on("message", async (msg) => {
           });
       } catch (error) {
         console.log(error);
-        bot.sendMessage(chatId, "Xlsx Error: " + error.message);
+        bot.sendMessage(process.env.MY_TG_ID, "Xlsx Error: " + error.message);
+        bot.sendMessage(chatId, "Что-то пошло не так.");
       }
     } else if (text === "Блюда") {
       bot.deleteMessage(chatId, msg.message_id);
@@ -245,7 +245,7 @@ bot.on("message", async (msg) => {
           });
       } catch (error) {
         bot.sendMessage(chatId, "Произошла какая-то ошибка");
-        bot.sendMessage(myTgId, "Put goods" + error);
+        bot.sendMessage(process.env.MY_TG_ID, "Put goods" + error);
       }
     } else if (isModifiersChange) {
       if (!modifiersId.includes(Number(text))) {
@@ -276,7 +276,7 @@ bot.on("message", async (msg) => {
       } catch (error) {
         console.log(error);
         bot.sendMessage(chatId, "Произошла какая-то ошибка");
-        bot.sendMessage(myTgId, "Put modifiers" + error);
+        bot.sendMessage(process.env.MY_TG_ID, "Put modifiers" + error);
       }
     }
   }
@@ -371,7 +371,7 @@ async function fetchData(url) {
     return response.data;
   } catch (error) {
     console.error("Fetch error:", error.message);
-    bot.sendMessage(myTgId, "Fetch error: " + error.message);
+    bot.sendMessage(process.env.MY_TG_ID, "Fetch error: " + error.message);
   }
 }
 
