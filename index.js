@@ -10,6 +10,7 @@ let goodsId;
 let modifiersId;
 let isGoodsChange = false;
 let isModifiersChange = false;
+const userData = [];
 
 let groupId = Number(process.env.GROUP_ID);
 
@@ -89,14 +90,31 @@ bot.on("message", async (msg) => {
                   "В скором времени наш сотрудник сообщит вам цену доставки"
                 );
               }
+
               let textForGroup = `${orderText}\n${
                 data.deliveryType === "delivery"
                   ? "Укажите стоимость доставки на этот адресс"
                   : ""
               }`;
-              bot.sendMessage(groupId, textForGroup, {
-                parse_mode: "HTML",
-              });
+
+              textForGroup += `\nTelegram id: "${chatId}"`;
+
+              bot
+                .sendMessage(groupId, textForGroup, {
+                  parse_mode: "HTML",
+                })
+                .then((sentMessage) => {
+                  const messageId = sentMessage.message_id;
+
+                  bot.onReplyToMessage(groupId, messageId, (reply) => {
+                    const replyText = reply.text;
+                    const messageText = sentMessage.text;
+                    const splitedMessage = messageText.split("\n");
+                    const userTgId =
+                      splitedMessage[splitedMessage.length - 1].split('"')[1];
+                    bot.sendMessage(userTgId, replyText);
+                  });
+                });
               axios.post("https://server.tg-delivery.ru/api/menu/createOrder", {
                 username: msg.from?.username,
                 tgId: chatId,
