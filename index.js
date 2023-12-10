@@ -13,6 +13,7 @@ let isModifiersChange = false;
 const userData = [];
 
 let groupId = Number(process.env.GROUP_ID);
+let cardToPay = "2202 2061 6829 6213";
 
 const bot = new TelegramBot(process.env.TOKEN, { polling: true });
 
@@ -83,13 +84,19 @@ bot.on("message", async (msg) => {
 
             // Обработка действия, связанного с выбранной кнопкой
             if (chosenButton === "acceptButton") {
-              bot.sendMessage(chatId, "Ваш заказ был подтвержден");
-              if (data.deliveryType === "delivery") {
-                bot.sendMessage(
-                  chatId,
-                  "В скором времени наш сотрудник сообщит вам цену доставки"
-                );
-              }
+              let addText = `${
+                data.deliveryType === "delivery"
+                  ? "В скором времени наш сотрудник сообщит вам цену доставки\n\n"
+                  : ""
+              }${
+                data.payMethod === "card"
+                  ? "Карта для перевода:\n|_ 2202 2061 6829 6213\n|_ Арсен Николаевич Т."
+                  : ""
+              }`;
+
+              bot.sendMessage(chatId, "Ваш заказ был подтвержден").then(() => {
+                if (addText) bot.sendMessage(chatId, addText);
+              });
 
               let textForGroup = `${orderText}\n${
                 data.deliveryType === "delivery"
@@ -362,13 +369,17 @@ function createOrderText(data, cart) {
     comment,
     discountPrice,
   } = data;
-  res = `Новый заказ:\n\nКорзина:\n${cart}\Номер телефона: ${phone}\nМетод оплаты: <b>${
-    payMethod === "cash" ? "Наличными" : "Переводом"
-  }</b>\nТип получения: <b>${
-    deliveryType === "pickup" ? "Самовывоз" : "Доставка"
-  }</b>\n${address !== null ? "Адресс: " + address + "\n" : ""}${
-    comment !== null ? "Комментарий к заказу: " + comment + "\n" : ""
-  }`;
+  res = `Новый заказ:
+  
+Корзина:
+${cart}
+Номер телефона: ${phone}
+Метод оплаты: <b>${payMethod === "cash" ? "Наличными" : "Переводом"}</b>
+Тип получения: <b>${deliveryType === "pickup" ? "Самовывоз" : "Доставка"}</b>${
+    address !== null ? "Адресс: " + address : ""
+  }
+${comment !== null ? "Комментарий к заказу: " + comment + "\n" : ""}`;
+  res += ``;
   res += `\nЦена без скидки: <b>${price}</b> ₽
 Цена со скидкой: <b>${discountPrice}</b> ₽`;
 
