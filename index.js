@@ -375,9 +375,8 @@ function createOrderText(data, cart) {
 ${cart}
 Номер телефона: ${phone}
 Метод оплаты: <b>${payMethod === "cash" ? "Наличными" : "Переводом"}</b>
-Тип получения: <b>${deliveryType === "pickup" ? "Самовывоз" : "Доставка"}</b>${
-    address !== null ? "Адресс: " + address : ""
-  }
+Тип получения: <b>${deliveryType === "pickup" ? "Самовывоз" : "Доставка"}</b>
+${address !== null ? "Адресс: " + address : ""}
 ${comment !== null ? "Комментарий к заказу: " + comment + "\n" : ""}`;
   res += ``;
   res += `\nЦена без скидки: <b>${price}</b> ₽
