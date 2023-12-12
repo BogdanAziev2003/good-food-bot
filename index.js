@@ -20,6 +20,7 @@ const bot = new TelegramBot(process.env.TOKEN, { polling: true });
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
+  const repliedMessageText = msg?.reply_to_message?.text;
   // Отправка приветственного сообщения
   if (text === "/start" && chatId !== groupId) {
     const welcomeMessage = `
@@ -106,22 +107,10 @@ bot.on("message", async (msg) => {
 
               textForGroup += `\nTelegram id: "${chatId}"`;
 
-              bot
-                .sendMessage(groupId, textForGroup, {
-                  parse_mode: "HTML",
-                })
-                .then((sentMessage) => {
-                  const messageId = sentMessage.message_id;
+              bot.sendMessage(groupId, textForGroup, {
+                parse_mode: "HTML",
+              });
 
-                  bot.onReplyToMessage(groupId, messageId, (reply) => {
-                    const replyText = reply.text;
-                    const messageText = sentMessage.text;
-                    const splitedMessage = messageText.split("\n");
-                    const userTgId =
-                      splitedMessage[splitedMessage.length - 1].split('"')[1];
-                    bot.sendMessage(userTgId, replyText);
-                  });
-                });
               axios.post("https://server.tg-delivery.ru/api/menu/createOrder", {
                 username: msg.from?.username,
                 tgId: chatId,
@@ -303,6 +292,10 @@ bot.on("message", async (msg) => {
         bot.sendMessage(chatId, "Произошла какая-то ошибка");
         bot.sendMessage(process.env.MY_TG_ID, "Put modifiers" + error);
       }
+    } else if (msg.reply_to_message) {
+      const splitedMessage = repliedMessageText.split("\n");
+      const userTgId = splitedMessage[splitedMessage.length - 1].split('"')[1];
+      bot.sendMessage(userTgId, text);
     }
   }
 });
