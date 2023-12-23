@@ -294,8 +294,39 @@ bot.on("message", async (msg) => {
       }
     } else if (msg.reply_to_message) {
       const splitedMessage = repliedMessageText.split("\n");
+
+      const price = splitedMessage
+        .find((el) => el.includes("Цена"))
+        .split(": ")[1]
+        .split(" ")[0];
+
       const userTgId = splitedMessage[splitedMessage.length - 1].split('"')[1];
-      bot.sendMessage(userTgId, text);
+      const splitedText = text.split("\n");
+      let textForSend = "";
+      if (splitedText.length > 2) {
+        bot.sendMessage(
+          groupId,
+          "В ответе на сообщение должно быть только не больше 2х строк"
+        );
+        return;
+      }
+      const [minutes, taxiPrice] = splitedText[0].split(" ");
+      textForSend = `Ваш заказ принят. 
+Будет готов через ${minutes} минут.
+${
+  taxiPrice
+    ? "Стоимость доставки: " +
+      taxiPrice +
+      " ₽. \nСтоимость вместе с доставкой: " +
+      (Number(taxiPrice) + Number(price))
+    : ""
+}
+${splitedText[1] ? splitedText[1] : ""}`;
+      bot.sendMessage(
+        groupId,
+        "Пользователю было отправлено сообщение:\n" + textForSend
+      );
+      bot.sendMessage(userTgId, textForSend);
     }
   }
 });
