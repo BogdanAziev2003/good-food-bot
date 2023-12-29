@@ -5,6 +5,7 @@ const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
 require("dotenv").config();
+const util = require("node:util");
 
 let goodsId;
 let modifiersId;
@@ -101,7 +102,7 @@ bot.on("message", async (msg) => {
 
               let textForGroup = `${orderText}\n${
                 data.deliveryType === "delivery"
-                  ? "Укажите стоимость доставки на этот адресс"
+                  ? "Укажите стоимость доставки на этот адрес"
                   : ""
               }`;
 
@@ -293,40 +294,80 @@ bot.on("message", async (msg) => {
         bot.sendMessage(process.env.MY_TG_ID, "Put modifiers" + error);
       }
     } else if (msg.reply_to_message) {
-      const splitedMessage = repliedMessageText.split("\n");
+      if (msg.text === undefined || repliedMessageText === undefined) {
+        return;
+      }
 
-      const price = splitedMessage
-        .find((el) => el.includes("Цена"))
-        .split(": ")[1]
-        .split(" ")[0];
-
-      const userTgId = splitedMessage[splitedMessage.length - 1].split('"')[1];
-      const splitedText = text.split("\n");
-      let textForSend = "";
-      if (splitedText.length > 2) {
+      if (!repliedMessageText.includes("Telegram id")) {
         bot.sendMessage(
           groupId,
-          "В ответе на сообщение должно быть только не больше 2х строк"
+          "Бот не может обработать ответ на данное сообщение"
         );
         return;
       }
-      const [minutes, taxiPrice] = splitedText[0].split(" ");
-      textForSend = `Ваш заказ принят. 
-Будет готов через ${minutes} минут.
+
+      const splitedMessage = repliedMessageText.split("\n");
+      const priceText = splitedMessage.filter((el) => el.includes("Цена"));
+      const priceTextArray = priceText[priceText.length - 1].split(" ");
+      const price = Number(priceTextArray[priceTextArray.length - 2]);
+      if (Number.isNaN(price)) {
+        bot.sendMessage(groupId, "Что-то не так с ценой");
+        console.log(price);
+        return;
+      }
+
+      const userTgId = splitedMessage[splitedMessage.length - 1].split('"')[1];
+
+      // ---------------------------------
+      try {
+        const splitedText = text.split("\n");
+        if (splitedText.length > 2) {
+          bot.sendMessage(
+            groupId,
+            "В ответе на сообщение должно быть только не больше 2х строк"
+          );
+          return;
+        }
+        const [minutes, taxiPrice] = splitedText[0]
+          .split(" ")
+          .map((el) => Number(el));
+        console.log(minutes, taxiPrice);
+
+        if (Number.isNaN(minutes)) {
+          bot.sendMessage(groupId, "Цена была указана не правильно");
+          return;
+        }
+
+        if (taxiPrice !== undefined && Number.isNaN(taxiPrice)) {
+          bot.sendMessage(
+            groupId,
+            "Стоимость доставки была указана не правильно"
+          );
+          return;
+        }
+
+        let textForSend = `Ваш заказ был принят.
+Будет готов через ${minutes} мин.
 ${
   taxiPrice
-    ? "Стоимость доставки: " +
-      taxiPrice +
-      " ₽. \nСтоимость вместе с доставкой: " +
-      (Number(taxiPrice) + Number(price))
+    ? `Стоимость доставки: ${taxiPrice} ₽
+Стоимость заказа вместе с доставкой: ${taxiPrice + price} ₽`
     : ""
 }
 ${splitedText[1] ? splitedText[1] : ""}`;
-      bot.sendMessage(
-        groupId,
-        "Пользователю было отправлено сообщение:\n" + textForSend
-      );
-      bot.sendMessage(userTgId, textForSend);
+        console.log(true);
+        bot.sendMessage(
+          groupId,
+          "Пользователю было отправлено сообщение:\n" + textForSend
+        );
+        bot.sendMessage(userTgId, textForSend);
+      } catch (error) {
+        console.log(error);
+        bot.sendMessage(
+          process.env.MY_TG_ID,
+          "Произошла непредвиденная ошибка при пересылке сообщения"
+        );
+      }
     }
   }
 });
@@ -400,7 +441,7 @@ ${cart}
 Номер телефона: ${phone}
 Метод оплаты: <b>${payMethod === "cash" ? "Наличными" : "Переводом"}</b>
 Тип получения: <b>${deliveryType === "pickup" ? "Самовывоз" : "Доставка"}</b>
-${address !== null ? "Адресс: " + address : ""}
+${address !== null ? "Адрес: " + address : ""}
 ${comment !== null ? "Комментарий к заказу: " + comment + "\n" : ""}`;
   res += ``;
   res += `\nЦена без скидки: <b>${price}</b> ₽
@@ -435,4 +476,8 @@ function AOOtoAOA(arr) {
     }
     return array;
   });
+}
+
+function isNumber(value) {
+  return typeof value === "number" && isFinite(value);
 }
