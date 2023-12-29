@@ -334,7 +334,7 @@ bot.on("message", async (msg) => {
         console.log(minutes, taxiPrice);
 
         if (Number.isNaN(minutes)) {
-          bot.sendMessage(groupId, "Цена была указана не правильно");
+          bot.sendMessage(groupId, "Время было указана не правильно");
           return;
         }
 
