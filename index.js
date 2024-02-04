@@ -6,6 +6,7 @@ const fs = require("fs");
 const path = require("path");
 require("dotenv").config();
 const util = require("node:util");
+const { error } = require("console");
 
 let goodsId;
 let modifiersId;
@@ -24,6 +25,9 @@ bot.on("message", async (msg) => {
   const repliedMessageText = msg?.reply_to_message?.text;
   // Отправка приветственного сообщения
   if (text === "/start" && chatId !== groupId) {
+
+    const imagePath = "./images/1.PNG"
+
     const welcomeMessage = `
     Добро пожаловать! 🍽️\n\nЯ бот, который поможет заказть еду с ресторана Good Food. Вы можете выбрать блюда из нашего меню и сделать заказ. 😊\n\nДля просмотра меню и совершения заказа, воспользуйтесь кнопкой ниже:
     `;
@@ -41,6 +45,9 @@ bot.on("message", async (msg) => {
         resize_keyboard: true,
       },
     });
+
+    await bot.sendPhoto(chatId, fs.readFileSync(imagePath))
+    .catch((error) => bot.sendMessage(env.process.MY_TG_ID, error))
   }
 
   // Когда получили данные
@@ -208,8 +215,8 @@ bot.on("message", async (msg) => {
           goodsId = data.map((el) => el.id);
 
           textForMessage = textForMessage.replaceAll(",", "");
-          bot.sendMessage(chatId, textForMessage);
           bot.sendMessage(chatId, "Введите номер товара");
+          bot.sendMessage(chatId, textForMessage);
         })
         .then(() => {
           isGoodsChange = true;
