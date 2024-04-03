@@ -1,12 +1,10 @@
-const TelegramBot = require("node-telegram-bot-api");
-const xlsxPopulate = require("xlsx-populate");
-const moment = require("moment-timezone");
-const axios = require("axios");
-const fs = require("fs");
-const path = require("path");
-require("dotenv").config();
-const util = require("node:util");
-const { error } = require("console");
+const TelegramBot = require("node-telegram-bot-api")
+const xlsxPopulate = require("xlsx-populate")
+const moment = require("moment-timezone")
+const axios = require("axios")
+const fs = require("fs")
+const path = require("path")
+require("dotenv").config()
 
 let goodsId
 let modifiersId
@@ -15,39 +13,39 @@ let isModifiersChange = false
 const userData = []
 
 let groupId = Number(process.env.GROUP_ID)
-let cardToPay = '2202 2061 6829 6213'
 
 const bot = new TelegramBot(process.env.TOKEN, { polling: true })
 
-bot.on('message', async (msg) => {
+bot.on("message", async (msg) => {
   const chatId = msg.chat.id
   const text = msg.text
   const repliedMessageText = msg?.reply_to_message?.text
   // Отправка приветственного сообщения
   if (text === "/start" && chatId !== groupId) {
 
-    const imagePath = "./images/1.PNG"
-
     const welcomeMessage = `
-    Добро пожаловать! 🍽️\n\nЯ бот, который поможет заказть еду с ресторана Good Food. Вы можете выбрать блюда из нашего меню и сделать заказ. 😊\n\nДля просмотра меню и совершения заказа, воспользуйтесь кнопкой ниже:
+    Добро пожаловать! 🍽️\n\nЯ бот, который поможет заказть еду с кафе Good Food. Вы можете выбрать блюда из нашего меню и сделать заказ. 😊\n\nДля просмотра меню и совершения заказа, воспользуйтесь кнопкой ниже:
     `
+    try{
 
-    await bot.sendMessage(chatId, welcomeMessage, {
-      reply_markup: {
-        keyboard: [
-          [
-            {
-              text: 'Меню 🍔',
-              web_app: { url: 'https://good-food.tg-delivery.ru/' },
-            },
+      await bot.sendMessage(chatId, welcomeMessage, {
+        reply_markup: {
+          keyboard: [
+            [
+              {
+                text: "Меню 🍔",
+                web_app: { url: "https://good-food.tg-delivery.ru/" },
+              },
+            ],
           ],
-        ],
-        resize_keyboard: true,
-      },
-    });
+          resize_keyboard: true,
+        },
+      })
+    }catch(error){
+      bot.sendMessage(process.env.MY_TG_ID, error)
+    }
 
-    await bot.sendPhoto(chatId, fs.readFileSync(imagePath))
-    .catch((error) => bot.sendMessage(env.process.MY_TG_ID, error))
+
   }
 
   // Когда получили данные
@@ -62,107 +60,124 @@ bot.on('message', async (msg) => {
       const itemsString = getItemsString(items)
 
       // Создаю текст, который отправлю покупателю и ресторану
-      const orderText = createOrderText(data, itemsString)
+      const orderText = createOrderText(data, itemsString, chatId)
 
+      fetchData(
+        `https://server.tg-delivery.ru/api/menu/getOrdersById/${chatId}`
+      )
+        .then((data) => {
+          console.log(data)
+
+          if (!data.length) {
+            orderText += `Цена со скидкой: <b>${price * 0.9}</b>`
+          }
+        })
+        .then(() => {
+          bot
+            .sendMessage(chatId, orderText, {
+              parse_mode: "HTML",
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    { text: "Подтвердить", callback_data: "acceptButton" },
+                    { text: "Отменить", callback_data: "cancelButton" },
+                  ],
+                ],
+              },
+            })
+            .then((sentMessage) => {
+              const messageId = sentMessage.message_id
+
+              bot.once("callback_query", (query) => {
+                const chosenButton = query.data
+                // Удаляем инлайн кнопки из сообщения
+                bot.editMessageReplyMarkup(
+                  { inline_keyboard: [] },
+                  {
+                    chat_id: chatId,
+                    message_id: messageId,
+                  }
+                )
+
+                // Обработка действия, связанного с выбранной кнопкой
+                if (chosenButton === "acceptButton") {
+                  let addText = `${
+                    data.deliveryType === "delivery"
+                      ? "В скором времени наш сотрудник сообщит вам цену доставки\n\n"
+                      : ""
+                  }${
+                    data.payMethod === "card"
+                      ? "Карта для перевода:\n|_ 2202 2061 6829 6213\n|_ Арсен Николаевич Т."
+                      : ""
+                  }`
+
+                  bot
+                    .sendMessage(chatId, "Ваш заказ был подтвержден")
+                    .then(() => {
+                      if (addText) bot.sendMessage(chatId, addText)
+                    })
+
+                  let textForGroup = `${orderText}\n${
+                    data.deliveryType === "delivery"
+                      ? "Укажите стоимость доставки на этот адрес"
+                      : ""
+                  }`
+
+                  textForGroup += `\nTelegram id: "${chatId}"`
+
+                  bot.sendMessage(groupId, textForGroup, {
+                    parse_mode: "HTML",
+                  })
+
+                  axios.post(
+                    "https://server.tg-delivery.ru/api/menu/createOrder",
+                    {
+                      username: msg.from?.username,
+                      tgId: chatId,
+                      order: orderText,
+                      price: data.price,
+                    }
+                  )
+                } else if (chosenButton === "cancelButton") {
+                  bot.sendMessage(chatId, "Ваш заказ был отменен")
+                }
+              })
+            })
+        })
       // Отправляю сообщение о заказе клиенту и добавляю 2 кнопки, также записываю сообщение в переменную для дальнейшего взаимодействия
-      await bot
-        .sendMessage(chatId, orderText, {
-          parse_mode: 'HTML',
-          reply_markup: {
-            inline_keyboard: [
-              [
-                { text: 'Подтвердить', callback_data: 'acceptButton' },
-                { text: 'Отменить', callback_data: 'cancelButton' },
-              ],
-            ],
-          },
-        })
-        .then((sentMessage) => {
-          const messageId = sentMessage.message_id
-
-          bot.once('callback_query', (query) => {
-            const chosenButton = query.data
-            // Удаляем инлайн кнопки из сообщения
-            bot.editMessageReplyMarkup(
-              { inline_keyboard: [] },
-              {
-                chat_id: chatId,
-                message_id: messageId,
-              }
-            )
-
-            // Обработка действия, связанного с выбранной кнопкой
-            if (chosenButton === 'acceptButton') {
-              let addText = `${
-                data.deliveryType === 'delivery'
-                  ? 'В скором времени наш сотрудник сообщит вам цену доставки\n\n'
-                  : ''
-              }${
-                data.payMethod === 'card'
-                  ? 'Карта для перевода:\n|_ 2202 2061 6829 6213\n|_ Арсен Николаевич Т.'
-                  : ''
-              }`
-
-              bot.sendMessage(chatId, 'Ваш заказ был подтвержден').then(() => {
-                if (addText) bot.sendMessage(chatId, addText)
-              })
-
-              let textForGroup = `${orderText}\n${
-                data.deliveryType === 'delivery'
-                  ? 'Укажите стоимость доставки на этот адрес'
-                  : ''
-              }`
-
-              textForGroup += `\nTelegram id: "${chatId}"`
-
-              bot.sendMessage(groupId, textForGroup, {
-                parse_mode: 'HTML',
-              })
-
-              axios.post('https://server.tg-delivery.ru/api/menu/createOrder', {
-                username: msg.from?.username,
-                tgId: chatId,
-                order: orderText,
-                price: data.price,
-              })
-            } else if (chosenButton === 'cancelButton') {
-              bot.sendMessage(chatId, 'Ваш заказ был отменен')
-            }
-          })
-        })
     } catch (e) {
       console.log(e)
-      bot.sendMessage(chatId, 'Упс, что-то пошло не так. Попробуйте еще раз')
+      bot.sendMessage(chatId, "Упс, что-то пошло не так. Попробуйте еще раз")
       bot.sendMessage(process.env.MY_TG_ID, e)
     }
   }
 
   if (chatId === groupId) {
-    if (text === 'Админка') {
-      await bot.sendMessage(chatId, 'Панель администратора', {
+    if (text === "Админка") {
+      await bot.sendMessage(chatId, "Панель администратора", {
         reply_markup: {
           keyboard: [
             [
               {
-                text: 'Заказы',
+                text: "Заказы",
               },
             ],
-            [{ text: 'Блюда' }, { text: 'Модификаторы' }],
+            [{ text: "Блюда" }, { text: "Модификаторы" }],
           ],
           resize_keyboard: true,
         },
       })
-    } else if (text === 'Заказы') {
+    } else if (text === "Заказы") {
       try {
         bot.deleteMessage(chatId, msg.message_id)
         let xlsxPath = path.join(
           __dirname,
-          'orders',
+          "orders",
           `${getCurrentDateTime()}.xlsx`
         )
-        fs.writeFileSync(xlsxPath, '')
+        fs.writeFileSync(xlsxPath, "")
 
-        await fetchData('https://server.tg-delivery.ru/api/menu/getOrders')
+        await fetchData("https://server.tg-delivery.ru/api/menu/getOrders")
           .then((data) => {
             data = AOOtoAOA(data)
             xlsxPopulate
@@ -188,7 +203,7 @@ bot.on('message', async (msg) => {
                   {},
                   {
                     contentType:
-                      'pplication/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                      "pplication/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                   }
                 )
               })
@@ -199,13 +214,13 @@ bot.on('message', async (msg) => {
           })
       } catch (error) {
         console.log(error)
-        bot.sendMessage(process.env.MY_TG_ID, 'Xlsx Error: ' + error.message)
-        bot.sendMessage(chatId, 'Что-то пошло не так.')
+        bot.sendMessage(process.env.MY_TG_ID, "Xlsx Error: " + error.message)
+        bot.sendMessage(chatId, "Что-то пошло не так.")
       }
-    } else if (text === 'Блюда') {
+    } else if (text === "Блюда") {
       bot.deleteMessage(chatId, msg.message_id)
 
-      fetchData('https://server.tg-delivery.ru/api/menu/getGoodsName')
+      fetchData("https://server.tg-delivery.ru/api/menu/getGoodsName")
         .then((data) => {
           let textForMessage = `Товары:\n${String(
             data.map((el) => {
@@ -214,18 +229,18 @@ bot.on('message', async (msg) => {
           )}`
           goodsId = data.map((el) => el.id)
 
-          textForMessage = textForMessage.replaceAll(",", "");
-          bot.sendMessage(chatId, "Введите номер товара");
-          bot.sendMessage(chatId, textForMessage);
+          textForMessage = textForMessage.replaceAll(",", "")
+          bot.sendMessage(chatId, "Введите номер товара")
+          bot.sendMessage(chatId, textForMessage)
         })
         .then(() => {
           isGoodsChange = true
           isModifiersChange = false
         })
-    } else if (text === 'Модификаторы') {
+    } else if (text === "Модификаторы") {
       bot.deleteMessage(chatId, msg.message_id)
 
-      fetchData('https://server.tg-delivery.ru/api/menu/getModifiersName')
+      fetchData("https://server.tg-delivery.ru/api/menu/getModifiersName")
         .then((data) => {
           let textForMessage = `Модификаторы:\n${String(
             data.map((el) => {
@@ -234,9 +249,9 @@ bot.on('message', async (msg) => {
           )}`
 
           modifiersId = data.map((el) => el.id)
-          textForMessage = textForMessage.replaceAll(',', '')
+          textForMessage = textForMessage.replaceAll(",", "")
           bot.sendMessage(chatId, textForMessage)
-          bot.sendMessage(chatId, 'Введите номер модификатора')
+          bot.sendMessage(chatId, "Введите номер модификатора")
         })
         .then(() => {
           isModifiersChange = true
@@ -246,7 +261,7 @@ bot.on('message', async (msg) => {
       if (!goodsId.includes(Number(text))) {
         bot.sendMessage(
           chatId,
-          'Введены некоректные данные, попробуйте еще раз'
+          "Введены некоректные данные, попробуйте еще раз"
         )
         isGoodsChange = false
         isModifiersChange = false
@@ -257,23 +272,23 @@ bot.on('message', async (msg) => {
 
       try {
         await axios
-          .put('https://server.tg-delivery.ru/api/menu/changeInStock', {
+          .put("https://server.tg-delivery.ru/api/menu/changeInStock", {
             id: id,
           })
           .then(() => {
-            bot.sendMessage(chatId, 'Данные были успешно изменены')
+            bot.sendMessage(chatId, "Данные были успешно изменены")
             isGoodsChange = false
             isModifiersChange = false
           })
       } catch (error) {
-        bot.sendMessage(chatId, 'Произошла какая-то ошибка')
-        bot.sendMessage(process.env.MY_TG_ID, 'Put goods' + error)
+        bot.sendMessage(chatId, "Произошла какая-то ошибка")
+        bot.sendMessage(process.env.MY_TG_ID, "Put goods" + error)
       }
     } else if (isModifiersChange) {
       if (!modifiersId.includes(Number(text))) {
         bot.sendMessage(
           chatId,
-          'Введены некоректные данные, попробуйте еще раз'
+          "Введены некоректные данные, попробуйте еще раз"
         )
         isGoodsChange = false
         isModifiersChange = false
@@ -285,39 +300,39 @@ bot.on('message', async (msg) => {
       try {
         await axios
           .put(
-            'https://server.tg-delivery.ru/api/menu/changeInStockModifiers',
+            "https://server.tg-delivery.ru/api/menu/changeInStockModifiers",
             {
               id: id,
             }
           )
           .then(() => {
-            bot.sendMessage(chatId, 'Данные были успешно изменены')
+            bot.sendMessage(chatId, "Данные были успешно изменены")
             isModifiersChange = false
             isGoodsChange = false
           })
       } catch (error) {
         console.log(error)
-        bot.sendMessage(chatId, 'Произошла какая-то ошибка')
-        bot.sendMessage(process.env.MY_TG_ID, 'Put modifiers' + error)
+        bot.sendMessage(chatId, "Произошла какая-то ошибка")
+        bot.sendMessage(process.env.MY_TG_ID, "Put modifiers" + error)
       }
     } else if (msg.reply_to_message) {
       if (msg.text === undefined || repliedMessageText === undefined) {
         return
       }
 
-      if (!repliedMessageText.includes('Telegram id')) {
+      if (!repliedMessageText.includes("Telegram id")) {
         bot.sendMessage(
           groupId,
-          'Бот не может обработать ответ на данное сообщение'
+          "Бот не может обработать ответ на данное сообщение"
         )
         return
       }
-      const splitedMessage = repliedMessageText.split('\n')
-      const priceText = splitedMessage.filter((el) => el.includes('Цена'))
-      const priceTextArray = priceText[priceText.length - 1].split(' ')
+      const splitedMessage = repliedMessageText.split("\n")
+      const priceText = splitedMessage.filter((el) => el.includes("Цена"))
+      const priceTextArray = priceText[priceText.length - 1].split(" ")
       const price = Number(priceTextArray[priceTextArray.length - 2])
       if (Number.isNaN(price)) {
-        bot.sendMessage(groupId, 'Что-то не так с ценой')
+        bot.sendMessage(groupId, "Что-то не так с ценой")
         console.log(price)
         return
       }
@@ -326,28 +341,28 @@ bot.on('message', async (msg) => {
 
       // ---------------------------------
       try {
-        const splitedText = text.split('\n')
+        const splitedText = text.split("\n")
         if (splitedText.length > 2) {
           bot.sendMessage(
             groupId,
-            'В ответе на сообщение должно быть только не больше 2х строк'
+            "В ответе на сообщение должно быть только не больше 2х строк"
           )
           return
         }
         const [minutes, taxiPrice] = splitedText[0]
-          .split(' ')
+          .split(" ")
           .map((el) => Number(el))
         console.log(minutes, taxiPrice)
 
         if (Number.isNaN(minutes)) {
-          bot.sendMessage(groupId, 'Время было указана не правильно')
+          bot.sendMessage(groupId, "Время было указана не правильно")
           return
         }
 
         if (taxiPrice !== undefined && Number.isNaN(taxiPrice)) {
           bot.sendMessage(
             groupId,
-            'Стоимость доставки была указана не правильно'
+            "Стоимость доставки была указана не правильно"
           )
           return
         }
@@ -358,20 +373,20 @@ ${
   taxiPrice
     ? `Стоимость доставки: ${taxiPrice} ₽
 Стоимость заказа вместе с доставкой: ${taxiPrice + price} ₽`
-    : ''
+    : ""
 }
-${splitedText[1] ? splitedText[1] : ''}`
+${splitedText[1] ? splitedText[1] : ""}`
         console.log(true)
         bot.sendMessage(
           groupId,
-          'Пользователю было отправлено сообщение:\n' + textForSend
+          "Пользователю было отправлено сообщение:\n" + textForSend
         )
         bot.sendMessage(userTgId, textForSend)
       } catch (error) {
         console.log(error)
         bot.sendMessage(
           process.env.MY_TG_ID,
-          'Произошла непредвиденная ошибка при пересылке сообщения'
+          "Произошла непредвиденная ошибка при пересылке сообщения"
         )
       }
     }
@@ -412,7 +427,7 @@ function splitItemsInCart(itemInCard) {
 }
 
 function getItemsString(items) {
-  let res = ''
+  let res = ""
 
   items.forEach((item, index) => {
     res += `${index + 1}. ${item.title} x${item.count} ( ${item.price} ₽)\n`
@@ -424,13 +439,13 @@ function getItemsString(items) {
         (i) => `${i.title.toLowerCase()} x ${i.amount} `
       )}\n`
     }
-    res += '\n'
+    res += "\n"
   })
 
   return res
 }
 
-function createOrderText(data, cart) {
+function createOrderText(data, cart, chatId) {
   const {
     price,
     address,
@@ -440,15 +455,16 @@ function createOrderText(data, cart) {
     comment,
     discountPrice,
   } = data
+
   res = `Новый заказ:
   
 Корзина:
 ${cart}
 Номер телефона: ${phone}
-Метод оплаты: <b>${payMethod === 'cash' ? 'Наличными' : 'Переводом'}</b>
-Тип получения: <b>${deliveryType === 'pickup' ? 'Самовывоз' : 'Доставка'}</b>
-${address !== null ? 'Адрес: ' + address : ''}
-${comment !== null ? 'Комментарий к заказу: ' + comment + '\n' : ''}`
+Метод оплаты: <b>${payMethod === "cash" ? "Наличными" : "Переводом"}</b>
+Тип получения: <b>${deliveryType === "pickup" ? "Самовывоз" : "Доставка"}</b>
+${address !== null ? "Адрес: " + address : ""}
+${comment !== null ? "Комментарий к заказу: " + comment + "\n" : ""}`
   res += ``
   res += `\nЦена: <b>${price}</b> ₽`
 
@@ -457,10 +473,10 @@ ${comment !== null ? 'Комментарий к заказу: ' + comment + '\n'
 
 function getCurrentDateTime() {
   // Получаем текущую дату и время с учетом часового пояса +3
-  const currentDate = moment().tz('Europe/Moscow')
+  const currentDate = moment().tz("Europe/Moscow")
 
   // Форматируем дату и время с разделителями
-  return currentDate.format('YYYY-MM-DD_HH-mm-ss')
+  return currentDate.format("YYYY-MM-DD_HH-mm-ss")
 }
 
 async function fetchData(url) {
@@ -468,8 +484,8 @@ async function fetchData(url) {
     const response = await axios.get(url)
     return response.data
   } catch (error) {
-    console.error('Fetch error:', error.message)
-    bot.sendMessage(process.env.MY_TG_ID, 'Fetch error: ' + error.message)
+    console.error("Fetch error:", error.message)
+    bot.sendMessage(process.env.MY_TG_ID, "Fetch error: " + error.message)
   }
 }
 
@@ -484,5 +500,7 @@ function AOOtoAOA(arr) {
 }
 
 function isNumber(value) {
-  return typeof value === 'number' && isFinite(value)
+  return typeof value === "number" && isFinite(value)
 }
+
+
