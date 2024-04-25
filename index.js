@@ -22,12 +22,10 @@ bot.on("message", async (msg) => {
   const repliedMessageText = msg?.reply_to_message?.text
   // Отправка приветственного сообщения
   if (text === "/start" && chatId !== groupId) {
-
     const welcomeMessage = `
     Добро пожаловать! 🍽️\n\nЯ бот, который поможет заказть еду с кафе Good Food. Вы можете выбрать блюда из нашего меню и сделать заказ. 😊\n\nДля просмотра меню и совершения заказа, воспользуйтесь кнопкой ниже:
     `
-    try{
-
+    try {
       await bot.sendMessage(chatId, welcomeMessage, {
         reply_markup: {
           keyboard: [
@@ -41,11 +39,11 @@ bot.on("message", async (msg) => {
           resize_keyboard: true,
         },
       })
-    }catch(error){
+
+      await bot.sendPhoto(chatId, "./images/2.PNG")
+    } catch (error) {
       bot.sendMessage(process.env.MY_TG_ID, error)
     }
-
-
   }
 
   // Когда получили данные
@@ -502,5 +500,3 @@ function AOOtoAOA(arr) {
 function isNumber(value) {
   return typeof value === "number" && isFinite(value)
 }
-
-
