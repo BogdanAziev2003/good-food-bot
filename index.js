@@ -45,6 +45,23 @@ bot.on("message", async (msg) => {
       bot.sendMessage(process.env.MY_TG_ID, error)
     }
   }
+  if (text === "/menu" && chatId !== groupId) {
+    try {
+      bot.sendMessage(chatId, "Кнопка меню", {
+        reply_markup: {
+          keyboard: [
+            [
+              {
+                text: "Меню 🍔",
+                web_app: { url: "https://good-food.tg-delivery.ru/" },
+              },
+            ],
+          ],
+          resize_keyboard: true,
+        },
+      })
+    } catch (error) {}
+  }
 
   // Когда получили данные
   if (msg?.web_app_data?.data) {
@@ -60,89 +77,17 @@ bot.on("message", async (msg) => {
       // Создаю текст, который отправлю покупателю и ресторану
       const orderText = createOrderText(data, itemsString, chatId)
 
-      fetchData(
-        `https://server.tg-delivery.ru/api/menu/getOrdersById/${chatId}`
-      )
-        .then((data) => {
-          console.log(data)
-
-          if (!data.length) {
-            orderText += `Цена со скидкой: <b>${price * 0.9}</b>`
-          }
-        })
-        .then(() => {
-          bot
-            .sendMessage(chatId, orderText, {
-              parse_mode: "HTML",
-              reply_markup: {
-                inline_keyboard: [
-                  [
-                    { text: "Подтвердить", callback_data: "acceptButton" },
-                    { text: "Отменить", callback_data: "cancelButton" },
-                  ],
-                ],
-              },
-            })
-            .then((sentMessage) => {
-              const messageId = sentMessage.message_id
-
-              bot.once("callback_query", (query) => {
-                const chosenButton = query.data
-                // Удаляем инлайн кнопки из сообщения
-                bot.editMessageReplyMarkup(
-                  { inline_keyboard: [] },
-                  {
-                    chat_id: chatId,
-                    message_id: messageId,
-                  }
-                )
-
-                // Обработка действия, связанного с выбранной кнопкой
-                if (chosenButton === "acceptButton") {
-                  let addText = `${
-                    data.deliveryType === "delivery"
-                      ? "В скором времени наш сотрудник сообщит вам цену доставки\n\n"
-                      : ""
-                  }${
-                    data.payMethod === "card"
-                      ? "Карта для перевода:\n|_ 2202 2061 6829 6213\n|_ Арсен Николаевич Т."
-                      : ""
-                  }`
-
-                  bot
-                    .sendMessage(chatId, "Ваш заказ был подтвержден")
-                    .then(() => {
-                      if (addText) bot.sendMessage(chatId, addText)
-                    })
-
-                  let textForGroup = `${orderText}\n${
-                    data.deliveryType === "delivery"
-                      ? "Укажите стоимость доставки на этот адрес"
-                      : ""
-                  }`
-
-                  textForGroup += `\nTelegram id: "${chatId}"`
-
-                  bot.sendMessage(groupId, textForGroup, {
-                    parse_mode: "HTML",
-                  })
-
-                  axios.post(
-                    "https://server.tg-delivery.ru/api/menu/createOrder",
-                    {
-                      username: msg.from?.username,
-                      tgId: chatId,
-                      order: orderText,
-                      price: data.price,
-                    }
-                  )
-                } else if (chosenButton === "cancelButton") {
-                  bot.sendMessage(chatId, "Ваш заказ был отменен")
-                }
-              })
-            })
-        })
-      // Отправляю сообщение о заказе клиенту и добавляю 2 кнопки, также записываю сообщение в переменную для дальнейшего взаимодействия
+      bot.sendMessage(chatId, orderText, {
+        parse_mode: "HTML",
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: "Подтвердить", callback_data: "acceptButton" },
+              { text: "Отменить", callback_data: "cancelButton" },
+            ],
+          ],
+        },
+      })
     } catch (e) {
       console.log(e)
       bot.sendMessage(chatId, "Упс, что-то пошло не так. Попробуйте еще раз")
@@ -391,6 +336,68 @@ ${splitedText[1] ? splitedText[1] : ""}`
   }
 })
 
+bot.on("callback_query", async (query) => {
+  let chatId = query.message.chat.id
+  let messageId = query.message.message_id
+
+  switch (query.data) {
+    case "acceptButton":
+      bot.editMessageReplyMarkup(
+        { inline_keyboard: [] },
+        {
+          chat_id: chatId,
+          message_id: messageId,
+        }
+      )
+      await bot.sendMessage(chatId, "Заказ был подтвержден")
+      await bot.sendMessage(
+        process.env.GROUP_ID,
+        query.message.text + `\n\nTelegram id: "${chatId}"`
+      )
+      if (query.message.text.includes("Доставка")) {
+        bot.sendMessage(
+          chatId,
+          "В скором времени наш сотрудник сообщит вам цену доставки"
+        )
+      }
+      if (query.message.text.includes("Переводом")) {
+        bot.sendMessage(
+          chatId,
+          "Карта для перевода:\n|_ 2202 2061 6829 6213\n|_ Арсен Николаевич Т."
+        )
+      }
+      try {
+        let price = query.message.text
+          .split("\n")
+          .find((el) => el.includes("Цена"))
+          .replaceAll("Цена: ", "")
+          .replaceAll(" ₽", "")
+
+        axios.post("https://server.tg-delivery.ru/api/menu/createOrder", {
+          username: query.message.chat?.username,
+          tgId: chatId,
+          order: query.message.text,
+          price: price,
+        })
+      } catch (error) {
+        console.dir(error)
+      }
+
+      break
+    case "cancelButton":
+      bot.sendMessage(chatId, "Заказ был отменен")
+
+      bot.editMessageReplyMarkup(
+        { inline_keyboard: [] },
+        {
+          chat_id: chatId,
+          message_id: messageId,
+        }
+      )
+      break
+  }
+})
+
 function splitItemsInCart(itemInCard) {
   const itemsCount = itemInCard.reduce((acc, item) => {
     const existingItem = acc.find(
@@ -495,8 +502,4 @@ function AOOtoAOA(arr) {
     }
     return array
   })
-}
-
-function isNumber(value) {
-  return typeof value === "number" && isFinite(value)
 }
